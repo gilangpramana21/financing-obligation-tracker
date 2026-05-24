@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Preview Extracted Data - Financing Obligation Tracker{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h1><i class="fas fa-eye me-3"></i>PREVIEW EXTRACTED DATA</h1>
+    <p class="text-muted">Review the extracted data before saving to database</p>
+    
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>File:</strong> {{ filename }}
+    </div>
+    
+    <!-- Agreement Info -->
+    <div class="table-container">
+        <h3><i class="fas fa-file-contract me-2"></i>Agreement Information</h3>
+        <table class="table">
+            <tr>
+                <th width="30%">Field</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td><strong>Financier</strong></td>
+                <td>{{ data.financier }}</td>
+            </tr>
+            <tr>
+                <td><strong>Agreement Name</strong></td>
+                <td>{{ data.agreement_name }}</td>
+            </tr>
+            <tr>
+                <td><strong>Contract Start</strong></td>
+                <td>{{ data.contract_start }}</td>
+            </tr>
+            <tr>
+                <td><strong>Contract End</strong></td>
+                <td>{{ data.contract_end }}</td>
+            </tr>
+            <tr>
+                <td><strong>Facility Amount</strong></td>
+                <td>{{ "{:,.2f}".format(data.facility_amount) }} {{ data.currency }}</td>
+            </tr>
+        </table>
+    </div>
+        
+        <!-- Reporting Obligations -->
+        <div class="table-container mt-4">
+            <h3><i class="fas fa-file-alt me-2"></i>Reporting Obligations ({{ data.reporting_obligations|length }})</h3>
+            {% if data.reporting_obligations|length > 0 %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Report Name</th>
+                            <th>Frequency</th>
+                            <th>Due Day</th>
+                            <th>Next Due</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for report in data.reporting_obligations %}
+                        <tr>
+                            <td>{{ report.report_name }}</td>
+                            <td><span class="badge bg-primary">{{ report.frequency }}</span></td>
+                            <td>{{ report.due_day }}</td>
+                            <td>{{ report.next_due }}</td>
+                            <td>{{ report.description }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No reporting obligations found</p>
+            {% endif %}
+        </div>
+        
+        <!-- Covenants -->
+        <div class="table-container mt-4">
+            <h3><i class="fas fa-balance-scale me-2"></i>Financial Covenants ({{ data.covenants|length }})</h3>
+            {% if data.covenants|length > 0 %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Metric</th>
+                            <th>Threshold</th>
+                            <th>Unit</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cov in data.covenants %}
+                        <tr>
+                            <td>{{ cov.name }}</td>
+                            <td>
+                                {% if cov.type == 'minimum' %}
+                                <span class="badge bg-success">Minimum</span>
+                                {% else %}
+                                <span class="badge bg-warning">Maximum</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ cov.metric }}</td>
+                            <td>{{ "{:,.2f}".format(cov.threshold) }}</td>
+                            <td>{{ cov.unit }}</td>
+                            <td>{{ cov.description }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No covenants found</p>
+            {% endif %}
+        </div>
+        
+        <!-- Other Obligations -->
+        <div class="table-container mt-4">
+            <h3><i class="fas fa-clipboard-list me-2"></i>Other Obligations ({{ data.other_obligations|length }})</h3>
+            {% if data.other_obligations|length > 0 %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Ongoing</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for other in data.other_obligations %}
+                        <tr>
+                            <td><span class="badge bg-info">{{ other.category }}</span></td>
+                            <td>{{ other.description }}</td>
+                            <td>{{ 'Yes' if other.is_ongoing else 'No' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">No other obligations found</p>
+            {% endif %}
+        </div>
+        
+        <!-- Actions -->
+        <div class="mt-4">
+            <button type="button" id="confirmBtn" class="btn btn-success btn-lg me-3">
+                <i class="fas fa-check me-2"></i>
+                Confirm & Save to Database
+            </button>
+            <a href="/upload" class="btn btn-secondary btn-lg">
+                <i class="fas fa-times me-2"></i>
+                Cancel
+            </a>
+        </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('confirmBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('confirmBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+        
+        try {
+            const response = await fetch('/upload/confirm', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                btn.innerHTML = '<i class="fas fa-check me-2"></i>Saved!';
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-primary');
+                
+                setTimeout(() => {
+                    window.location.href = data.redirect || '/';
+                }, 1000);
+            } else {
+                throw new Error(data.error || 'Failed to save');
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-2"></i>Confirm & Save to Database';
+        }
+    });
+</script>
+{% endblock %}

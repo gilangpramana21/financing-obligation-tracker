@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Upload PDF - Financing Obligation Tracker{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h1><i class="fas fa-upload me-3"></i>UPLOAD FINANCING AGREEMENT PDF</h1>
+    <p class="text-muted">Upload PDF financing agreements to automatically extract obligations, covenants, and reporting requirements.</p>
+    
+    <div class="upload-zone" id="uploadZone">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p class="mb-2">Drag and drop PDF files here or click to browse</p>
+        <p class="text-muted small">Maximum file size: 200MB per file • PDF format only</p>
+        <input type="file" id="fileInput" multiple accept=".pdf" style="display: none;">
+    </div>
+    
+    <div id="fileList" class="mt-4" style="display: none;">
+        <h3>Selected Files:</h3>
+        <ul id="fileListItems" class="list-group"></ul>
+        <button id="uploadBtn" class="btn btn-success btn-lg mt-3">
+            <i class="fas fa-check me-2"></i>
+            PROCESS PDF(S)
+        </button>
+    </div>
+    
+    <div id="progressSection" class="mt-4" style="display: none;">
+        <h3>Processing...</h3>
+        <div class="progress" style="height: 30px;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+        </div>
+        <p id="statusText" class="mt-2 text-muted"></p>
+    </div>
+    
+    <div id="resultsSection" class="mt-4" style="display: none;">
+        <h3>Results:</h3>
+        <div id="resultsContent"></div>
+        <a href="/" class="btn btn-primary mt-3">
+            <i class="fas fa-home me-2"></i>
+            Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const fileListItems = document.getElementById('fileListItems');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const resultsSection = document.getElementById('resultsSection');
+    const resultsContent = document.getElementById('resultsContent');
+    
+    let selectedFiles = [];
+    
+    // Click to browse
+    uploadZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // Drag and drop
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#0284c7';
+    });
+    
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.style.borderColor = '#0ea5e9';
+    });
+    
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.style.borderColor = '#0ea5e9';
+        handleFiles(e.dataTransfer.files);
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+    
+    function handleFiles(files) {
+        selectedFiles = Array.from(files).filter(f => f.name.endsWith('.pdf'));
+        
+        if (selectedFiles.length === 0) {
+            alert('Please select PDF files only');
+            return;
+        }
+        
+        // Display file list
+        fileListItems.innerHTML = '';
+        selectedFiles.forEach(file => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `
+                <span><i class="fas fa-file-pdf text-danger me-2"></i>${file.name}</span>
+                <span class="badge bg-secondary">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+            `;
+            fileListItems.appendChild(li);
+        });
+        
+        fileList.style.display = 'block';
+    }
+    
+    // Upload button
+    uploadBtn.addEventListener('click', async () => {
+        if (selectedFiles.length === 0) return;
+        
+        // Only process first file for preview
+        if (selectedFiles.length > 1) {
+            alert('Please upload one file at a time for preview and validation');
+            return;
+        }
+        
+        // Hide file list, show progress
+        fileList.style.display = 'none';
+        progressSection.style.display = 'block';
+        
+        const formData = new FormData();
+        formData.append('files[]', selectedFiles[0]);
+        
+        try {
+            statusText.textContent = 'Extracting data from PDF...';
+            progressBar.style.width = '50%';
+            
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.redirect) {
+                progressBar.style.width = '100%';
+                statusText.textContent = 'Extraction complete! Redirecting to preview...';
+                
+                setTimeout(() => {
+                    window.location.href = data.redirect;
+                }, 1000);
+            } else if (data.error) {
+                throw new Error(data.error);
+            }
+            
+        } catch (error) {
+            statusText.textContent = 'Error: ' + error.message;
+            progressBar.classList.remove('progress-bar-animated');
+            progressBar.classList.add('bg-danger');
+            progressBar.style.width = '100%';
+            
+            // Show retry button
+            setTimeout(() => {
+                progressSection.style.display = 'none';
+                fileList.style.display = 'block';
+            }, 3000);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Financing Obligation Tracker{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h1><i class="fas fa-cog me-3"></i>NOTIFICATION SETTINGS</h1>
+    <p class="text-muted">Configure email alerts for obligation notifications</p>
+    
+    <!-- Email Configuration -->
+    <div class="table-container">
+        <h3><i class="fas fa-envelope me-2"></i>Email Configuration</h3>
+        <p class="text-muted">Configure these settings in your <code>.env</code> file</p>
+        
+        <table class="table">
+            <tr>
+                <th width="30%">Setting</th>
+                <th>Current Value</th>
+            </tr>
+            <tr>
+                <td><strong>SMTP Server</strong></td>
+                <td><code>{{ smtp_server }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>SMTP Port</strong></td>
+                <td><code>{{ smtp_port }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>Sender Email</strong></td>
+                <td><code>{{ sender_email if sender_email else 'Not configured' }}</code></td>
+            </tr>
+            <tr>
+                <td><strong>Recipient Emails</strong></td>
+                <td><code>{{ recipient_emails if recipient_emails else 'Not configured' }}</code></td>
+            </tr>
+        </table>
+        
+        <div class="alert alert-info mt-3">
+            <h5><i class="fas fa-info-circle me-2"></i>How to Configure</h5>
+            <p>Add these lines to your <code>.env</code> file:</p>
+            <pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;">
+# Email Configuration
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SENDER_EMAIL=your-email@gmail.com
+SENDER_PASSWORD=your-app-password
+RECIPIENT_EMAILS=recipient1@example.com,recipient2@example.com</pre>
+            
+            <p class="mt-3"><strong>For Gmail:</strong></p>
+            <ol>
+                <li>Enable 2-Factor Authentication on your Google account</li>
+                <li>Generate an App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank">https://myaccount.google.com/apppasswords</a></li>
+                <li>Use the App Password as <code>SENDER_PASSWORD</code></li>
+            </ol>
+        </div>
+    </div>
+    
+    <!-- Alert Schedule -->
+    <div class="table-container mt-4">
+        <h3><i class="fas fa-clock me-2"></i>Alert Schedule</h3>
+        <p class="text-muted">Automatic alerts are sent daily at 9:00 AM</p>
+        
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Alert Type</th>
+                    <th>Trigger Conditions</th>
+                    <th>Urgency</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Contract Renewals</strong></td>
+                    <td>90, 60, 30, 7, 1 days before expiry</td>
+                    <td><span class="badge badge-warning">Warning</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Reporting Obligations</strong></td>
+                    <td>Overdue or due within 7 days</td>
+                    <td><span class="badge badge-danger">Critical</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Covenant Breaches</strong></td>
+                    <td>Breach or within 10% of threshold</td>
+                    <td><span class="badge badge-danger">Critical</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Test Alert -->
+    <div class="table-container mt-4">
+        <h3><i class="fas fa-paper-plane me-2"></i>Test Notifications</h3>
+        <p class="text-muted">Send a test alert to verify email configuration</p>
+        
+        <button id="testAlertBtn" class="btn btn-primary btn-lg">
+            <i class="fas fa-paper-plane me-2"></i>
+            Send Test Alert Now
+        </button>
+        
+        <div id="testResult" class="mt-3" style="display: none;"></div>
+    </div>
+    
+    <!-- Manual Check -->
+    <div class="table-container mt-4">
+        <h3><i class="fas fa-sync me-2"></i>Manual Check</h3>
+        <p class="text-muted">Run obligation check manually (normally runs daily at 9 AM)</p>
+        
+        <button id="manualCheckBtn" class="btn btn-success btn-lg">
+            <i class="fas fa-sync me-2"></i>
+            Run Check Now
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('testAlertBtn').addEventListener('click', async function() {
+        const btn = this;
+        const result = document.getElementById('testResult');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+        
+        try {
+            const response = await fetch('/api/send_test_alert', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            result.style.display = 'block';
+            if (data.success) {
+                result.className = 'alert alert-success';
+                result.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+            } else {
+                result.className = 'alert alert-danger';
+                result.innerHTML = '<i class="fas fa-times-circle me-2"></i>Error: ' + data.error;
+            }
+        } catch (error) {
+            result.style.display = 'block';
+            result.className = 'alert alert-danger';
+            result.innerHTML = '<i class="fas fa-times-circle me-2"></i>Error: ' + error.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Send Test Alert Now';
+        }
+    });
+    
+    document.getElementById('manualCheckBtn').addEventListener('click', async function() {
+        const btn = this;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
+        
+        try {
+            const response = await fetch('/api/send_test_alert', {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            alert(data.success ? 'Check completed! Check console for results.' : 'Error: ' + data.error);
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync me-2"></i>Run Check Now';
+        }
+    });
+</script>
+{% endblock %}

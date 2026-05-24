@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Obligations - Financing Obligation Tracker{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h1><i class="fas fa-tasks me-3"></i>DETAILED ANALYSIS</h1>
+    
+    <!-- Filter -->
+    <div class="mb-4">
+        <form method="GET" action="/obligations">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Financier:</label>
+                    <select name="financier" class="form-select" onchange="this.form.submit()">
+                        {% for financier in financiers %}
+                        <option value="{{ financier }}" {% if financier == selected_financier %}selected{% endif %}>
+                            {{ financier }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Reporting Obligations -->
+    <h2><i class="fas fa-file-alt me-2"></i>REPORTING OBLIGATIONS</h2>
+    <div class="table-container">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Financier</th>
+                    <th>Report Name</th>
+                    <th>Frequency</th>
+                    <th>Next Due</th>
+                    <th>Due Day</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reporting_obligations %}
+                <tr>
+                    <td><strong>{{ report.agreement.financier }}</strong></td>
+                    <td>{{ report.report_name }}</td>
+                    <td>{{ report.frequency }}</td>
+                    <td>{{ report.next_due.strftime('%b %d, %Y') }}</td>
+                    <td>Day {{ report.due_day }}</td>
+                    <td>
+                        {% set status = check_reporting_status(report) %}
+                        {% if status == ReportingStatus.OVERDUE %}
+                            <span class="badge badge-danger">OVERDUE</span>
+                        {% elif status == ReportingStatus.DUE_SOON %}
+                            <span class="badge badge-warning">DUE SOON</span>
+                        {% elif status == ReportingStatus.UPCOMING %}
+                            <span class="badge badge-info">UPCOMING</span>
+                        {% else %}
+                            <span class="badge badge-success">OK</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-success" onclick="markSubmitted({{ report.id }}, '{{ report.report_name }}')">
+                            <i class="fas fa-check"></i> Mark Submitted
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Financial Covenants -->
+    <h2><i class="fas fa-balance-scale me-2"></i>FINANCIAL COVENANTS</h2>
+    <div class="table-container">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Financier</th>
+                    <th>Covenant Name</th>
+                    <th>Threshold</th>
+                    <th>Current Value</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for covenant in covenants %}
+                <tr>
+                    <td><strong>{{ covenant.agreement.financier }}</strong></td>
+                    <td>{{ covenant.name }}</td>
+                    <td>{{ "{:,.2f}".format(covenant.threshold) }} {{ covenant.unit }}</td>
+                    <td>{{ "{:,.2f}".format(covenant.current_value) if covenant.current_value else 'N/A' }}</td>
+                    <td>{{ covenant.type }}</td>
+                    <td>
+                        {% if covenant.current_value %}
+                            {% if covenant.type == 'minimum' and covenant.current_value < covenant.threshold %}
+                                <span class="badge badge-danger">BREACH</span>
+                            {% elif covenant.type == 'maximum' and covenant.current_value > covenant.threshold %}
+                                <span class="badge badge-danger">BREACH</span>
+                            {% else %}
+                                <span class="badge badge-success">COMPLIANT</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-secondary">NOT SET</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="updateCovenant({{ covenant.id }}, '{{ covenant.name }}')">
+                            <i class="fas fa-edit"></i> Update
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Other Obligations -->
+    <h2><i class="fas fa-clipboard-list me-2"></i>OTHER OBLIGATIONS</h2>
+    <div class="table-container">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Financier</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obligation in other_obligations %}
+                <tr>
+                    <td><strong>{{ obligation.agreement.financier }}</strong></td>
+                    <td>{{ obligation.category }}</td>
+                    <td>{{ obligation.description }}</td>
+                    <td>{{ 'Ongoing' if obligation.is_ongoing else 'One-time' }}</td>
+                    <td>
+                        {% if obligation.is_ongoing %}
+                            <span class="badge badge-success">ACTIVE</span>
+                        {% else %}
+                            <span class="badge badge-secondary">ONE-TIME</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Update Covenant Modal -->
+<div class="modal fade" id="updateCovenantModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Covenant Value</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="covenantName"></p>
+                <div class="mb-3">
+                    <label class="form-label">New Value:</label>
+                    <input type="number" step="0.01" class="form-control" id="newCovenantValue">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitCovenantUpdate()">Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentCovenantId = null;
+    const modal = new bootstrap.Modal(document.getElementById('updateCovenantModal'));
+    
+    function updateCovenant(id, name) {
+        currentCovenantId = id;
+        document.getElementById('covenantName').textContent = `Covenant: ${name}`;
+        document.getElementById('newCovenantValue').value = '';
+        modal.show();
+    }
+    
+    async function submitCovenantUpdate() {
+        const newValue = document.getElementById('newCovenantValue').value;
+        
+        if (!newValue) {
+            alert('Please enter a value');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/update_covenant/${currentCovenantId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ value: newValue })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Covenant updated successfully!');
+                modal.hide();
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+    
+    async function markSubmitted(id, name) {
+        if (!confirm(`Mark "${name}" as submitted?\n\nThis will update the next due date based on the frequency.`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/mark_submitted/${id}`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`Report marked as submitted!\nNext due date: ${data.next_due}`);
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+</script>
+{% endblock %}

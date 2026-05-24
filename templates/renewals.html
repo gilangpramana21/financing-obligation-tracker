@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Contract Renewals - Financing Obligation Tracker{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h1><i class="fas fa-sync me-3"></i>CONTRACT RENEWALS</h1>
+    <p class="text-muted">Monitor upcoming contract renewals and expirations</p>
+    
+    <div class="table-container">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Financier</th>
+                    <th>Agreement</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Facility Amount</th>
+                    <th>Days Left</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for renewal in renewals %}
+                <tr>
+                    <td><strong>{{ renewal.financier }}</strong></td>
+                    <td>{{ renewal.agreement }}</td>
+                    <td>{{ renewal.start_date.strftime('%b %d, %Y') }}</td>
+                    <td>{{ renewal.end_date.strftime('%b %d, %Y') }}</td>
+                    <td>{{ renewal.amount }}</td>
+                    <td>
+                        <strong>{{ renewal.days_left }}</strong> days
+                    </td>
+                    <td>
+                        {% if renewal.status == RenewalStatus.EXPIRED %}
+                            <span class="badge badge-danger">EXPIRED</span>
+                        {% elif renewal.status == RenewalStatus.CRITICAL %}
+                            <span class="badge badge-danger">CRITICAL</span>
+                        {% elif renewal.status == RenewalStatus.WARNING %}
+                            <span class="badge badge-warning">WARNING</span>
+                        {% else %}
+                            <span class="badge badge-success">ACTIVE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if renewal.status in [RenewalStatus.EXPIRED, RenewalStatus.CRITICAL, RenewalStatus.WARNING] %}
+                <tr>
+                    <td colspan="7" class="bg-warning bg-opacity-10">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        <strong>ACTION REQUIRED:</strong> Contact financier for renewal/extension
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
