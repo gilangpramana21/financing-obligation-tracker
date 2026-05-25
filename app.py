@@ -5,8 +5,14 @@ from datetime import date, timedelta
 from sqlalchemy import func
 import os
 from werkzeug.utils import secure_filename
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
+
+# Scheduler only works in non-serverless environments
+# For Vercel deployment, use Vercel Cron Jobs instead
+ENABLE_SCHEDULER = os.getenv('ENABLE_SCHEDULER', 'false').lower() == 'true'
+
+if ENABLE_SCHEDULER:
+    from apscheduler.schedulers.background import BackgroundScheduler
+    from apscheduler.triggers.cron import CronTrigger
 
 from models import get_session, Agreement, ReportingObligation, Covenant, OtherObligation
 from monitoring import (
@@ -16,8 +22,8 @@ from monitoring import (
 from notifications import NotificationService, run_daily_check
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['UPLOAD_FOLDER'] = 'documents'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+app.config['UPLOAD_FOLDER'] = '/tmp/documents' if os.getenv('VERCEL') else 'documents'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size
 
 # Ensure upload folder exists
@@ -28,17 +34,18 @@ session = get_session()
 # Initialize notification service
 notifier = NotificationService()
 
-# Setup scheduler for daily alerts
-scheduler = BackgroundScheduler()
-# Run daily at 9:00 AM
-scheduler.add_job(
-    func=run_daily_check,
-    trigger=CronTrigger(hour=9, minute=0),
-    id='daily_obligation_check',
-    name='Daily Obligation Check',
-    replace_existing=True
-)
-scheduler.start()
+# Setup scheduler for daily alerts (only in non-serverless environments)
+if ENABLE_SCHEDULER:
+    scheduler = BackgroundScheduler()
+    # Run daily at 9:00 AM
+    scheduler.add_job(
+        func=run_daily_check,
+        trigger=CronTrigger(hour=9, minute=0),
+        id='daily_obligation_check',
+        name='Daily Obligation Check',
+        replace_existing=True
+    )
+    scheduler.start()
 
 
 @app.route('/')
@@ -411,5 +418,6 @@ if __name__ == '__main__':
     try:
         app.run(debug=True, host='0.0.0.0', port=8080)
     finally:
-        # Shutdown scheduler when app closes
-        scheduler.shutdown()
+        # Shutdown scheduler when app closes (only if enabled)
+        if ENABLE_SCHEDULER and 'scheduler' in globals():
+            scheduler.shutdown()
