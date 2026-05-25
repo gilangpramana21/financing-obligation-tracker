@@ -14,5 +14,9 @@
   ],
   "env": {
     "FLASK_ENV": "production"
-  }
+  },
+  "crons": [{
+    "path": "/api/cron/daily-check",
+    "schedule": "0 9 * * *"
+  }]
 }

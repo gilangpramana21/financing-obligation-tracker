@@ -194,12 +194,21 @@ def upload():
                                 os.unlink(filepath)
                             return jsonify({'error': 'Agreement already exists in database'}), 400
                         
+                        # Upload to Cloudinary if configured
+                        pdf_url = None
+                        if os.getenv('VERCEL'):
+                            from cloud_storage import upload_pdf, is_cloudinary_configured
+                            if is_cloudinary_configured():
+                                pdf_url = upload_pdf(filepath, filename)
+                                if pdf_url:
+                                    agreement_data['pdf_url'] = pdf_url
+                        
                         # Store data in session for preview
                         from flask import session as flask_session
                         flask_session['preview_data'] = agreement_data
                         flask_session['preview_filename'] = filename
                         
-                        # Clean up file
+                        # Clean up local file
                         if os.path.exists(filepath):
                             os.unlink(filepath)
                         
@@ -412,6 +421,23 @@ def settings():
                          smtp_port=os.getenv('SMTP_PORT', '587'),
                          sender_email=os.getenv('SENDER_EMAIL', ''),
                          recipient_emails=os.getenv('RECIPIENT_EMAILS', ''))
+
+
+@app.route('/api/cron/daily-check')
+def cron_daily_check():
+    """Cron endpoint for daily obligation check (called by Vercel Cron)."""
+    # Verify request is from Vercel Cron
+    auth_header = request.headers.get('Authorization', '')
+    cron_secret = os.getenv('CRON_SECRET', 'default-secret')
+    
+    if not auth_header.startswith('Bearer ') or auth_header[7:] != cron_secret:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        run_daily_check()
+        return jsonify({'success': True, 'message': 'Daily check completed'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

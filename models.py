@@ -88,6 +88,18 @@ class OtherObligation(Base):
 # Database setup
 def get_engine(db_path='obligation_tracker.db'):
     """Create and return database engine."""
+    import os
+    
+    # Use PostgreSQL on Vercel, SQLite locally
+    if os.getenv('VERCEL') or os.getenv('POSTGRES_URL'):
+        database_url = os.getenv('POSTGRES_URL') or os.getenv('DATABASE_URL')
+        if database_url:
+            # Vercel Postgres uses 'postgres://' but SQLAlchemy needs 'postgresql://'
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            return create_engine(database_url, echo=False)
+    
+    # Fallback to SQLite for local development
     return create_engine(f'sqlite:///{db_path}', echo=False)
 
 
