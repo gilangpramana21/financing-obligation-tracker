@@ -58,6 +58,51 @@ class NotificationService:
             print(f"❌ Failed to send email: {str(e)}")
             return False
     
+    def send_new_agreement_notification(self, agreement_data: dict):
+        """Send email notification when new agreement is processed from Google Drive."""
+        subject = f"✅ New Agreement Processed: {agreement_data['financier']}"
+        
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #0ea5e9;">New Agreement Automatically Processed</h2>
+            
+            <p>A new financing agreement has been automatically extracted from Google Drive and added to the system.</p>
+            
+            <div style="background-color: #f0f9ff; padding: 15px; border-left: 4px solid #0ea5e9; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Agreement Details</h3>
+                <p><strong>Financier:</strong> {agreement_data['financier']}</p>
+                <p><strong>Agreement:</strong> {agreement_data['agreement_name']}</p>
+                <p><strong>Facility Amount:</strong> {agreement_data['currency']} {agreement_data['facility_amount']:,.2f}</p>
+                <p><strong>Contract Period:</strong> {agreement_data['contract_start']} to {agreement_data['contract_end']}</p>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <h3>Extracted Data Summary</h3>
+                <ul>
+                    <li><strong>Reporting Obligations:</strong> {len(agreement_data.get('reporting_obligations', []))}</li>
+                    <li><strong>Financial Covenants:</strong> {len(agreement_data.get('covenants', []))}</li>
+                    <li><strong>Other Obligations:</strong> {len(agreement_data.get('other_obligations', []))}</li>
+                </ul>
+            </div>
+            
+            <p style="margin-top: 30px;">
+                <a href="https://financing-obligation-tracker-cj62zfaqi.vercel.app" 
+                   style="background-color: #0ea5e9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+                    View in Dashboard
+                </a>
+            </p>
+            
+            <hr style="margin: 30px 0; border: none; border-top: 1px solid #e5e7eb;">
+            <p style="font-size: 12px; color: #6b7280;">
+                This is an automated notification from the Financing Obligation Tracker system.
+            </p>
+        </body>
+        </html>
+        """
+        
+        self.send_email(subject, html_body)
+    
     def check_and_send_alerts(self):
         """Check all obligations and send alerts if needed."""
         session = get_session()

@@ -440,6 +440,154 @@ def cron_daily_check():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/sync/google-drive', methods=['POST'])
+def sync_google_drive():
+    """
+    API endpoint to sync PDFs from Google Drive.
+    Called by Google Apps Script or Vercel Cron.
+    """
+    # Verify request authorization
+    auth_header = request.headers.get('Authorization', '')
+    api_secret = os.getenv('API_SECRET', os.getenv('CRON_SECRET', 'default-secret'))
+    
+    if not auth_header.startswith('Bearer ') or auth_header[7:] != api_secret:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        data = request.get_json()
+        
+        # Check if this is a test request
+        if data.get('test'):
+            return jsonify({
+                'success': True,
+                'message': 'API endpoint is working',
+                'test': True
+            })
+        
+        # Check if this is a direct sync request (no PDF data)
+        if 'content' not in data:
+            # Call the sync function to check Google Drive
+            from google_drive_sync import process_new_pdfs_from_drive
+            result = process_new_pdfs_from_drive()
+            return jsonify({
+                'success': True,
+                'message': 'Google Drive sync completed',
+                'result': result
+            })
+        
+        # Process PDF sent from Google Apps Script
+        import base64
+        from extractor import DocumentExtractor
+        from datetime import datetime
+        
+        filename = data.get('filename')
+        pdf_base64 = data.get('content')
+        
+        if not filename or not pdf_base64:
+            return jsonify({'error': 'Missing filename or content'}), 400
+        
+        # Decode base64 PDF
+        pdf_bytes = base64.b64decode(pdf_base64)
+        
+        # Save to temp file
+        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(filename))
+        with open(temp_path, 'wb') as f:
+            f.write(pdf_bytes)
+        
+        # Extract and process
+        extractor = DocumentExtractor(llm_provider="gemini")
+        document_text = extractor.extract_text(temp_path)
+        agreement_data = extractor.extract_obligations_from_text(document_text)
+        
+        if not agreement_data:
+            os.unlink(temp_path)
+            return jsonify({'error': 'Failed to extract data from PDF'}), 400
+        
+        # Validate
+        extractor.validate_extracted_data(agreement_data)
+        
+        # Check if exists
+        existing = session.query(Agreement).filter(
+            Agreement.financier == agreement_data['financier'],
+            Agreement.agreement_name == agreement_data['agreement_name']
+        ).first()
+        
+        if existing:
+            os.unlink(temp_path)
+            return jsonify({'error': 'Agreement already exists in database'}), 400
+        
+        # Save to database
+        agreement = Agreement(
+            financier=agreement_data['financier'],
+            agreement_name=agreement_data['agreement_name'],
+            contract_start=datetime.strptime(agreement_data['contract_start'], '%Y-%m-%d').date(),
+            contract_end=datetime.strptime(agreement_data['contract_end'], '%Y-%m-%d').date(),
+            facility_amount=float(agreement_data['facility_amount']),
+            currency=agreement_data['currency']
+        )
+        session.add(agreement)
+        session.flush()
+        
+        # Add obligations
+        for report in agreement_data.get('reporting_obligations', []):
+            reporting = ReportingObligation(
+                agreement_id=agreement.id,
+                report_name=report['report_name'],
+                frequency=report['frequency'],
+                due_day=report['due_day'],
+                description=report.get('description', ''),
+                next_due=datetime.strptime(report['next_due'], '%Y-%m-%d').date()
+            )
+            session.add(reporting)
+        
+        for cov in agreement_data.get('covenants', []):
+            covenant = Covenant(
+                agreement_id=agreement.id,
+                name=cov['name'],
+                type=cov['type'],
+                metric=cov['metric'],
+                threshold=float(cov['threshold']),
+                unit=cov['unit'],
+                description=cov.get('description', ''),
+                current_value=None,
+                last_updated=None
+            )
+            session.add(covenant)
+        
+        for other in agreement_data.get('other_obligations', []):
+            obligation = OtherObligation(
+                agreement_id=agreement.id,
+                category=other['category'],
+                description=other['description'],
+                is_ongoing=other.get('is_ongoing', True)
+            )
+            session.add(obligation)
+        
+        session.commit()
+        
+        # Send notification
+        try:
+            notifier.send_new_agreement_notification(agreement_data)
+        except Exception as e:
+            print(f"Failed to send notification: {e}")
+        
+        # Clean up
+        os.unlink(temp_path)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully processed: {agreement_data["financier"]} - {agreement_data["agreement_name"]}',
+            'agreement_id': agreement.id
+        })
+    
+    except Exception as e:
+        session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     try:
         app.run(debug=True, host='0.0.0.0', port=8080)
