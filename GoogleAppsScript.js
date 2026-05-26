@@ -28,8 +28,8 @@ const CONFIG = {
   // Your Google Drive folder ID (from folder URL)
   DRIVE_FOLDER_ID: '1C5CPeXuTEJkGpGtHPpChYV0f7VoQdPBI',
   
-  // Your Vercel API endpoint
-  API_ENDPOINT: 'https://financing-obligation-tracker-cj62zfaqi.vercel.app/api/sync/google-drive',
+  // Your Vercel API endpoint (use production domain, not deployment-specific URL)
+  API_ENDPOINT: 'https://financing-obligation-tracker.vercel.app/api/sync/google-drive',
   
   // API secret (same as CRON_SECRET in Vercel)
   API_SECRET: '9dad96e393b29aad6af49f5777bc97a135d4e0ac107a8be050ed91116ae527b1',
