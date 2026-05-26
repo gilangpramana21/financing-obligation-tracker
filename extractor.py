@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pdfplumber
-import pymupdf
+try:
+    import pymupdf
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
 from docx import Document
 from dotenv import load_dotenv
 
@@ -88,16 +92,29 @@ class DocumentExtractor:
             return "\n\n".join(text_parts)
         
         except Exception as e:
-            print(f"⚠️  pdfplumber failed, trying PyMuPDF: {e}")
-            # Fallback to PyMuPDF
+            print(f"⚠️  pdfplumber failed, trying PyPDF2: {e}")
+            # Fallback to PyPDF2
             try:
-                doc = pymupdf.open(pdf_path)
-                for page in doc:
-                    text_parts.append(page.get_text())
-                doc.close()
+                from PyPDF2 import PdfReader
+                reader = PdfReader(pdf_path)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text:
+                        text_parts.append(text)
                 return "\n\n".join(text_parts)
             except Exception as e2:
-                raise Exception(f"Failed to extract text from PDF: {e2}")
+                # Last resort: try PyMuPDF if available
+                if PYMUPDF_AVAILABLE:
+                    try:
+                        doc = pymupdf.open(pdf_path)
+                        for page in doc:
+                            text_parts.append(page.get_text())
+                        doc.close()
+                        return "\n\n".join(text_parts)
+                    except Exception as e3:
+                        raise Exception(f"Failed to extract text from PDF: {e3}")
+                else:
+                    raise Exception(f"Failed to extract text from PDF: {e2}")
     
     def extract_text_from_docx(self, docx_path: str) -> str:
         """Extract text from Word document."""
