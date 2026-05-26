@@ -51,33 +51,39 @@ if ENABLE_SCHEDULER:
 @app.route('/')
 def index():
     """Dashboard overview page."""
-    # Get all agreements
-    agreements = session.query(Agreement).all()
-    
-    # Calculate metrics
-    total_agreements = len(agreements)
-    total_facility = sum(a.facility_amount for a in agreements)
-    currency = agreements[0].currency if agreements else 'USD'
-    
-    # Get reporting obligations
-    reporting_obligations = session.query(ReportingObligation).all()
-    overdue_reports = sum(1 for r in reporting_obligations 
-                         if check_reporting_status(r) == ReportingStatus.OVERDUE)
-    
-    # Get covenants
-    covenants = session.query(Covenant).all()
-    breached_covenants = sum(1 for c in covenants 
-                            if c.current_value and 
-                            ((c.type == 'minimum' and c.current_value < c.threshold) or
-                             (c.type == 'maximum' and c.current_value > c.threshold)))
-    
-    return render_template('index.html',
-                         total_agreements=total_agreements,
-                         total_facility=format_currency(total_facility, currency),
-                         overdue_reports=overdue_reports,
-                         breached_covenants=breached_covenants,
-                         agreements=agreements,
-                         today=date.today())
+    try:
+        # Get all agreements
+        agreements = session.query(Agreement).all()
+        
+        # Calculate metrics
+        total_agreements = len(agreements)
+        total_facility = sum(a.facility_amount for a in agreements if a.facility_amount)
+        currency = agreements[0].currency if agreements and len(agreements) > 0 else 'USD'
+        
+        # Get reporting obligations
+        reporting_obligations = session.query(ReportingObligation).all()
+        overdue_reports = sum(1 for r in reporting_obligations 
+                             if check_reporting_status(r) == ReportingStatus.OVERDUE)
+        
+        # Get covenants
+        covenants = session.query(Covenant).all()
+        breached_covenants = sum(1 for c in covenants 
+                                if c.current_value and 
+                                ((c.type == 'minimum' and c.current_value < c.threshold) or
+                                 (c.type == 'maximum' and c.current_value > c.threshold)))
+        
+        return render_template('index.html',
+                             total_agreements=total_agreements,
+                             total_facility=format_currency(total_facility, currency),
+                             overdue_reports=overdue_reports,
+                             breached_covenants=breached_covenants,
+                             agreements=agreements,
+                             today=date.today())
+    except Exception as e:
+        print(f"Error in index route: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}", 500
 
 
 @app.route('/obligations')
