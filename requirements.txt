@@ -12,7 +12,7 @@ pymupdf==1.23.8
 pdfplumber==0.10.3
 
 # LLM APIs
-google-generativeai==0.3.1
+google-genai==0.3.0
 
 # Scheduling
 APScheduler==3.10.4
