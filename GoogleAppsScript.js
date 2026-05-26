@@ -26,16 +26,16 @@
 
 const CONFIG = {
   // Your Google Drive folder ID (from folder URL)
-  DRIVE_FOLDER_ID: 'YOUR_FOLDER_ID_HERE',
+  DRIVE_FOLDER_ID: '1C5CPeXuTEJkGpGtHPpChYV0f7VoQdPBI',
   
   // Your Vercel API endpoint
   API_ENDPOINT: 'https://financing-obligation-tracker-cj62zfaqi.vercel.app/api/sync/google-drive',
   
   // API secret (same as CRON_SECRET in Vercel)
-  API_SECRET: 'YOUR_API_SECRET_HERE',
+  API_SECRET: '9dad96e393b29aad6af49f5777bc97a135d4e0ac107a8be050ed91116ae527b1',
   
   // Email to send notifications to
-  NOTIFICATION_EMAIL: 'your-email@example.com'
+  NOTIFICATION_EMAIL: 'coorpjames@gmail.com'
 };
 
 // ============================================================================
